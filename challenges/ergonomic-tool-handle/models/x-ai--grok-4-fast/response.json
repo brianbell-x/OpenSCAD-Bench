@@ -1,0 +1,13 @@
+{
+  "id": "gen-1764794646-LOPWizVIh3ozvwxtmRFb",
+  "model": "x-ai/grok-4-fast",
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "```openscad\n// Ergonomic tool handle grip based on assumed cross-section profiles\n// Dimensions approximated for a reasonable ergonomic design:\n// - Section A (base at z=0): Rounded rectangle 20mm wide (x), 30mm high (y), 3mm corner radius\n// - Section B (at z=30mm): Ellipse 20mm wide (x), 30mm high (y) -- matching base for smooth transition\n// - Section C (at z=60mm): 15mm diameter circle with 3mm radius thumb rest bump offset 5mm in +x direction\n// - Section D (tip at z=90mm): 10mm diameter circle\n// Transitions use pairwise hulls for linear lofting, ensuring manifold geometry suitable for 3D printing\n\n// 2D cross-section modules (centered at origin in xy-plane)\nmodule crossA() {\n    minkowski() {\n        square([14, 24], center = true); // Sharp inner rectangle: 20-2*3=14 width, 30-2*3=24 height\n        circle(r = 3);\n    }\n}\n\nmodule crossB() {\n    scale([10, 15]) circle(r = 1); // Ellipse: 20mm x 30mm diameters\n}\n\nmodule crossC() {\n    union() {\n        circle(r = 7.5); // 15mm diameter circle\n        translate([5, 0]) circle(r = 3); // Asymmetric thumb rest bump, offset +x\n    }\n}\n\nmodule crossD() {\n    circle(r = 5); // 10mm diameter circle\n}\n\n// Thin slices at positions along z-axis (total length 90mm)\nslice_thickness = 0.001; // Minimal thickness for hull compatibility\n\nsliceA = translate([0, 0, 0]) linear_extrude(slice_thickness, center = true) crossA();\nsliceB = translate([0, 0, 30]) linear_extrude(slice_thickness, center = true) crossB();\nsliceC = translate([0, 0, 60]) linear_extrude(slice_thickness, center = true) crossC();\nsliceD = translate([0, 0, 90]) linear_extrude(slice_thickness, center = true) crossD();\n\n// Lofted handle using pairwise hulls for smooth linear transitions\nhandle = hull() { sliceA; sliceB; } union hull() { sliceB; sliceC; } union hull() { sliceC; sliceD; };\n\n// Render the handle\nhandle;\n```"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

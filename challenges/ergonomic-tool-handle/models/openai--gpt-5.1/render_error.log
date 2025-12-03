@@ -1,0 +1,12 @@
+Render Error at 2025-12-03T14:45:07.210643
+Model: openai/gpt-5.1
+Challenge: ergonomic-tool-handle
+Error: Geometries in cache: 17
+Geometry cache size in bytes: 18608
+CGAL Polyhedrons in cache: 0
+CGAL cache size in bytes: 0
+Total rendering time: 0:00:00.002
+   Top level object is a 2D object:
+   Contours:        1
+Current top level object is not a 3D object.
+SCAD file: challenges\ergonomic-tool-handle\models\openai--gpt-5.1\attempt.scad

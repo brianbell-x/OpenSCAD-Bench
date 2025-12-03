@@ -1,0 +1,13 @@
+{
+  "id": "gen-1764794597-hrDhNr2GmGyjp55Gdarp",
+  "model": "x-ai/grok-4-fast",
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "```openscad\n// L-shaped mounting bracket with counterbored holes\n// Dimensions based on reference sketch: \n// - Horizontal leg: 100mm long x 50mm wide x 5mm thick\n// - Vertical leg: 80mm high x 50mm wide x 5mm thick\n// - Hole pattern: M4 holes (4mm dia) with 8mm dia x 2mm deep counterbores\n// - Horizontal leg holes: at (20,15) and (80,35) from origin (bottom-left of horizontal leg)\n// - Vertical leg holes: at (15,20), (35,40), and (15,60) from the bend origin\n// Geometry is manifold and 3D-printable (print flat on horizontal leg)\n\n$fn = 50; // Resolution for cylinders\n\nmodule l_bracket() {\n    difference() {\n        union() {\n            // Horizontal leg (base)\n            cube([100, 50, 5]);\n            \n            // Vertical leg (upright from bend)\n            translate([0, 0, 5]) cube([50, 50, 75]);\n        }\n        \n        // Hole 1 on horizontal leg: through hole with counterbore on top\n        translate([20, 15, -0.1]) {\n            cylinder(h = 5.2, d = 4); // Through hole\n            translate([0, 0, 3]) cylinder(h = 2.1, d = 8); // Counterbore\n        }\n        \n        // Hole 2 on horizontal leg: through hole with counterbore on top\n        translate([80, 35, -0.1]) {\n            cylinder(h = 5.2, d = 4); // Through hole\n            translate([0, 0, 3]) cylinder(h = 2.1, d = 8); // Counterbore\n        }\n        \n        // Hole 1 on vertical leg: through hole with counterbore on outer face\n        translate([15, 20, 5 - 0.1]) rotate([90, 0, 0]) {\n            cylinder(h = 50.2, d = 4); // Through hole (along y)\n            translate([0, 0, 48]) cylinder(h = 2.1, d = 8); // Counterbore (on outer side)\n        }\n        \n        // Hole 2 on vertical leg: through hole with counterbore on outer face\n        translate([35, 40, 5 - 0.1]) rotate([90, 0, 0]) {\n            cylinder(h = 50.2, d = 4); // Through hole (along y)\n            translate([0, 0, 48]) cylinder(h = 2.1, d = 8); // Counterbore\n        }\n        \n        // Hole 3 on vertical leg: through hole with counterbore on outer face\n        translate([15, 60, 5 - 0.1]) rotate([90, 0, 0]) {\n            cylinder(h = 50.2, d = 4); // Through hole (along y)\n            translate([0, 0, 48]) cylinder(h = 2.1, d = 8); // Counterbore\n        }\n    }\n}\n\n// Render the bracket\nl_bracket();\n```"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

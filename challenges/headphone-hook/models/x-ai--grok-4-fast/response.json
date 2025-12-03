@@ -1,0 +1,13 @@
+{
+  "id": "gen-1764794755-ITJpLetXBssOsUY1VHTe",
+  "model": "x-ai/grok-4-fast",
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "```openscad\ndesk_thickness = 25;\nwall = 4;\nunder_depth = 30;\next_width = 30; // extrusion width\nextension = 50;\nhook_down = 20;\nround_radius = 8;\n\nmodule arm_profile() {\n    difference() {\n        union() {\n            translate([0, desk_thickness + wall]) square([extension, wall]);\n            translate([extension, desk_thickness + wall - hook_down]) square([wall, hook_down + wall]);\n        }\n        translate([extension, desk_thickness + wall]) circle(r = round_radius);\n    }\n}\n\nmodule clamp_profile() {\n    union() {\n        // bottom jaw\n        translate([-under_depth, 0]) square([under_depth, wall]);\n        // vertical back\n        translate([0, 0]) square([wall, desk_thickness + 2 * wall]);\n        // arm with hook\n        arm_profile();\n    }\n}\n\nlinear_extrude(height = ext_width, center = true, convexity = 10) {\n    clamp_profile();\n}\n```"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+# OpenSCAD Benchmark Configuration
+# ================================
+# This file configures which LLM models to test against `challenges/`.
+# Run with: python -m main [--dry-run] [--verbose]
+
+# Models to benchmark (required)
+# Format: {provider}/{model-name} - see https://openrouter.ai/models
+models:
+  - openai/gpt-5.1
+  - anthropic/claude-opus-4.5
+  - x-ai/grok-4-fast
+  - google/gemini-3-pro-preview
+  - deepseek/deepseek-v3.2
+
+# Challenges to run: "all" or list specific challenge folder names
+challenges: all
+
+# To run specific challenges only:
+# challenges:
+#   - box-lid-hinge
+#   - headphone-hook
+
+# Exclude specific challenges (only when challenges: all)
+# exclude_challenges:
+#   - raspberry-pi-4-case
+
+# System prompt sent to all models (YAML literal block preserves formatting)
+system_prompt: |
+  Generate executable OpenSCAD code in ```openscad code blocks. The code must produce rendered geometry without modification.
+
+# Path to OpenSCAD executable
+# Windows: C:/Program Files/OpenSCAD/openscad.exe
+# macOS:   /Applications/OpenSCAD.app/Contents/MacOS/OpenSCAD
+# Linux:   /usr/bin/openscad (or just "openscad" if in PATH)
+openscad_path: C:/Program Files/OpenSCAD/openscad.exe
+
+# API Configuration
+# Set OPENROUTER_API_KEY environment variable (or use .env file)
+api:
+  timeout: 900  # deepseek-v3.2-speciale took a WHILE
+
+  # LLM Parameters (uncomment to override model defaults)
+  # Non-default values create separate output folders for comparison
+  # See: https://openrouter.ai/docs/api-reference/parameters
+  
+  # temperature: 1.0        # 0.0-2.0: Lower=deterministic, higher=creative
+  # top_p: 1.0              # 0.0-1.0: Nucleus sampling threshold
+  # top_k: 0                # 0+: Limit token choices (0=disabled)
+  # frequency_penalty: 0.0  # -2.0 to 2.0: Reduce repeated tokens
+  # presence_penalty: 0.0   # -2.0 to 2.0: Reduce already-used tokens
+  # repetition_penalty: 1.0 # 0.0-2.0: Reduce input token repetition
+  # min_p: 0.0              # 0.0-1.0: Min probability relative to top token
+  # top_a: 0.0              # 0.0-1.0: Dynamic top-p filtering
+  # seed: null              # Integer for reproducible outputs
+  # max_tokens: null        # Max response length (model default if null)
+
+  # Reasoning tokens (for supported models: o-series, Claude 3.7+, DeepSeek R1)
+  # See: https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
+  # reasoning:
+  #   enabled: false        # Enable with default settings
+  #   effort: medium        # "low", "medium", or "high"
+  #   max_tokens: null      # Specific token limit (alternative to effort)
+  #   exclude: false        # Run reasoning but don't return it
