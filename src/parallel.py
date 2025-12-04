@@ -5,7 +5,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Union
 
 from rich.live import Live
 from rich.table import Table
@@ -77,7 +77,7 @@ def _build_status_table(
 
 def _run_single_model(
     model: str,
-    challenge_prompt: str,
+    challenge_prompt: Union[str, list],
     config: Config,
     status_dict: dict[str, ModelStatus],
     lock: threading.Lock,
@@ -141,7 +141,7 @@ def _run_single_model(
 
 def run_models_parallel(
     challenge_name: str,
-    challenge_prompt: str,
+    challenge_prompt: Union[str, list],
     models: list[str],
     config: Config,
 ) -> dict[str, ModelStatus]:

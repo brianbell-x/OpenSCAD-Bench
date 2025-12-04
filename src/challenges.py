@@ -1,10 +1,12 @@
 """Challenge discovery and prompt loading for OpenSCAD benchmark."""
 
+import base64
+import logging
 import shutil
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from config import ApiConfig
@@ -284,3 +286,47 @@ def get_model_output_dir(
     output_dir.mkdir(parents=True, exist_ok=True)
     
     return output_dir
+
+
+def prepare_user_prompt(challenge: Challenge) -> Union[str, list]:
+    """Prepare user prompt content, including reference image if present.
+    
+    If reference.png exists in the challenge directory, it will be loaded,
+    base64 encoded, and included in the user message content as a list with
+    text and image parts. Otherwise, returns the prompt as a string.
+    
+    Args:
+        challenge: The challenge to prepare the prompt for.
+        
+    Returns:
+        Either a string (prompt text only) or a list containing text and image
+        content parts for the API request.
+    """
+    logger = logging.getLogger(__name__)
+    
+    reference_path = challenge.path / "reference.png"
+    
+    if reference_path.exists():
+        logger.info("Reference image found: %s", reference_path)
+        try:
+            image_data = reference_path.read_bytes()
+            image_base64 = base64.b64encode(image_data).decode("utf-8")
+            
+            user_content = [
+                {"type": "text", "text": challenge.prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{image_base64}"
+                    }
+                }
+            ]
+            
+            logger.info("Reference image included in API request for challenge: %s", challenge.name)
+            return user_content
+        except Exception as e:
+            logger.warning("Failed to load reference image %s: %s. Using text-only prompt.", reference_path, e)
+            return challenge.prompt
+    else:
+        logger.info("No reference image found in challenge folder: %s", challenge.path)
+        return challenge.prompt

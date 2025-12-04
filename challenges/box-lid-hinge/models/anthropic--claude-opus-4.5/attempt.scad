@@ -1,126 +1,123 @@
-// Box Lid Hinge - Two-part assembly with filament pin
-// Designed for 3mm thick walls, 20mm total width
+// Box Lid Hinge - Filament Pin Design
+// For 3mm thick walls, ~20mm total width
+// Uses 1.75mm filament as hinge pin
 
-/* [Main Parameters] */
+/* [Hinge Parameters] */
 wall_thickness = 3;        // Box wall thickness
-hinge_width = 20;          // Total width of hinge
-pin_diameter = 1.75;       // Standard filament diameter
+hinge_width = 20;          // Total hinge width
+pin_diameter = 1.75;       // Filament diameter for pin
 pin_clearance = 0.3;       // Clearance for pin hole
+knuckle_count = 3;         // Number of knuckles (odd for symmetric)
 
-/* [Hinge Dimensions] */
-plate_thickness = 2.5;     // Thickness of mounting plate
-knuckle_outer_dia = 6;     // Outer diameter of knuckle
-screw_hole_dia = 3;        // Mounting screw hole diameter
-screw_head_dia = 5.5;      // Countersink diameter
-num_knuckles = 3;          // Number of knuckles (odd number)
+/* [Mounting] */
+screw_hole_diameter = 3;   // M3 screw holes
+countersink = true;        // Countersink the screw holes
 
-/* [Derived Values] */
-knuckle_gap = 0.3;         // Gap between knuckles
-total_knuckle_length = hinge_width - 2 * knuckle_gap;
-pin_hole_dia = pin_diameter + pin_clearance;
-plate_length = knuckle_outer_dia + 8;  // Length for mounting holes
+/* [Derived Dimensions] */
+knuckle_outer_d = pin_diameter + 3;  // Knuckle outer diameter
+plate_thickness = 2;                  // Mounting plate thickness
+plate_height = 12;                    // Height of mounting plate
+plate_width = hinge_width;
 
-// Calculate knuckle sizes
-// Part A gets outer knuckles (2), Part B gets center knuckle (1)
-knuckle_a_width = (total_knuckle_length - knuckle_gap * 2) / 3;
-knuckle_b_width = knuckle_a_width;
+// Knuckle dimensions
+knuckle_width = hinge_width / knuckle_count;
+pin_hole_d = pin_diameter + pin_clearance;
 
-/* [Rendering] */
-show_part_a = true;        // Box-side part
-show_part_b = true;        // Lid-side part
-explode_distance = 15;     // Distance between parts for visualization
+$fn = 32;
 
-module knuckle(width, outer_dia, inner_dia) {
+// Main hinge leaf module
+module hinge_leaf(is_box_side = true) {
     difference() {
-        // Outer cylinder
-        rotate([0, 90, 0])
-            cylinder(d=outer_dia, h=width, $fn=32);
-        // Pin hole
-        rotate([0, 90, 0])
-            translate([0, 0, -0.1])
-                cylinder(d=inner_dia, h=width + 0.2, $fn=24);
-    }
-}
-
-module mounting_plate(width, length, thickness, hole_dia, countersink_dia) {
-    difference() {
-        // Main plate
-        translate([0, 0, -thickness])
-            cube([width, length, thickness]);
+        union() {
+            // Mounting plate
+            translate([0, 0, plate_thickness/2])
+                cube([plate_width, plate_height, plate_thickness], center=true);
+            
+            // Knuckles
+            for (i = [0 : knuckle_count - 1]) {
+                // Alternating knuckles between box and lid sides
+                if ((i % 2 == 0) == is_box_side) {
+                    translate([
+                        -hinge_width/2 + knuckle_width/2 + i * knuckle_width,
+                        plate_height/2,
+                        0
+                    ])
+                    rotate([0, 90, 0])
+                    cylinder(d = knuckle_outer_d, h = knuckle_width - 0.2, center = true);
+                }
+            }
+            
+            // Fillet between plate and knuckles
+            translate([0, plate_height/2 - knuckle_outer_d/4, plate_thickness/2])
+                cube([plate_width, knuckle_outer_d/2, plate_thickness], center=true);
+        }
         
-        // Mounting holes with countersink
-        hole_offset_y = length / 2;
-        hole_offset_x1 = width * 0.25;
-        hole_offset_x2 = width * 0.75;
+        // Pin hole through all knuckles
+        translate([0, plate_height/2, 0])
+        rotate([0, 90, 0])
+        cylinder(d = pin_hole_d, h = hinge_width + 2, center = true);
         
-        for (x = [hole_offset_x1, hole_offset_x2]) {
-            translate([x, hole_offset_y, -thickness - 0.1]) {
+        // Screw holes
+        hole_spacing = plate_width * 0.6;
+        for (x = [-hole_spacing/2, hole_spacing/2]) {
+            translate([x, 0, -1]) {
                 // Through hole
-                cylinder(d=hole_dia, h=thickness + 0.2, $fn=24);
+                cylinder(d = screw_hole_diameter, h = plate_thickness + 2);
                 // Countersink
-                cylinder(d1=countersink_dia, d2=hole_dia, h=(countersink_dia-hole_dia)/2 + 0.1, $fn=24);
+                if (countersink) {
+                    translate([0, 0, plate_thickness + 1 - 1.5])
+                    cylinder(d1 = screw_hole_diameter, d2 = screw_hole_diameter + 3, h = 1.6);
+                }
             }
         }
     }
 }
 
-module hinge_part_a() {
-    // Box-side part - has 2 outer knuckles
-    knuckle_r = knuckle_outer_dia / 2;
+// Pin (cut from 1.75mm filament)
+module pin_reference() {
+    color("orange")
+    rotate([0, 90, 0])
+    cylinder(d = pin_diameter, h = hinge_width + 2, center = true);
+}
+
+// Assembly view
+module assembly() {
+    // Box side leaf
+    color("SteelBlue")
+    hinge_leaf(is_box_side = true);
     
-    union() {
-        // Mounting plate
-        mounting_plate(hinge_width, plate_length, plate_thickness, screw_hole_dia, screw_head_dia);
-        
-        // Connection from plate to knuckle axis
-        translate([0, 0, -plate_thickness])
-            cube([hinge_width, knuckle_r, plate_thickness + knuckle_r]);
-        
-        // Left knuckle
-        translate([knuckle_gap, knuckle_r, knuckle_r])
-            knuckle(knuckle_a_width, knuckle_outer_dia, pin_hole_dia);
-        
-        // Right knuckle
-        translate([hinge_width - knuckle_gap - knuckle_a_width, knuckle_r, knuckle_r])
-            knuckle(knuckle_a_width, knuckle_outer_dia, pin_hole_dia);
-    }
-}
-
-module hinge_part_b() {
-    // Lid-side part - has 1 center knuckle
-    knuckle_r = knuckle_outer_dia / 2;
+    // Lid side leaf (rotated to show hinge action)
+    color("LightSteelBlue")
+    translate([0, plate_height, 0])
+    rotate([0, 0, 180])
+    hinge_leaf(is_box_side = false);
     
-    union() {
-        // Mounting plate (on opposite side)
-        translate([0, -plate_length, 0])
-            mounting_plate(hinge_width, plate_length, plate_thickness, screw_hole_dia, screw_head_dia);
-        
-        // Connection from plate to knuckle axis
-        translate([0, -plate_length + knuckle_r, -plate_thickness])
-            cube([hinge_width, plate_length - knuckle_r, plate_thickness + knuckle_r]);
-        
-        // Center knuckle
-        center_start = knuckle_gap + knuckle_a_width + knuckle_gap;
-        translate([center_start, -knuckle_r, knuckle_r])
-            knuckle(knuckle_b_width, knuckle_outer_dia, pin_hole_dia);
-    }
+    // Show pin position
+    translate([0, plate_height/2, 0])
+    pin_reference();
 }
 
-// Render parts
-if (show_part_a) {
-    color("DodgerBlue")
-        translate([0, -explode_distance/2, 0])
-            hinge_part_a();
+// Print layout - both parts flat
+module print_layout() {
+    // Box side
+    translate([0, -plate_height/2 - 2, 0])
+    hinge_leaf(is_box_side = true);
+    
+    // Lid side
+    translate([0, plate_height/2 + 2, 0])
+    hinge_leaf(is_box_side = false);
 }
 
-if (show_part_b) {
-    color("Coral")
-        translate([0, explode_distance/2, 0])
-            hinge_part_b();
-}
+// Uncomment desired output:
 
-// Pin visualization (for reference)
-color("Silver", 0.5)
-    translate([-2, 0, knuckle_outer_dia/2])
-        rotate([0, 90, 0])
-            cylinder(d=pin_diameter, h=hinge_width + 4, $fn=16);
+// Show assembled hinge
+assembly();
+
+// For printing - uncomment this and comment assembly():
+// print_layout();
+
+// Single box-side leaf:
+// hinge_leaf(is_box_side = true);
+
+// Single lid-side leaf:
+// hinge_leaf(is_box_side = false);

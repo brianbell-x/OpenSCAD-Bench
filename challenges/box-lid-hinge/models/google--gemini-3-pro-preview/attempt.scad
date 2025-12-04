@@ -1,142 +1,132 @@
-// ==========================================
-// Parametric Print-in-Place Hinge (3mm Walls)
-// ==========================================
+// --- Parameters ---
 
-// --- Dimensions ---
-// Total width of the hinge along the pin axis
-total_width = 20;
+// Total width of the hinge along the axis
+hinge_width = 20;
 
-// Thickness of the mounting leaves (matches box wall thickness)
-wall_thickness = 3;
+// Thickness of the box walls (leaf thickness)
+leaf_thickness = 3;
 
-// Length of the leaf extending from the hinge
-leaf_length = 15;
+// Length of the leaf (distance from hinge center to edge)
+leaf_length = 15; 
 
-// Diameter of mounting screw holes
-hole_diameter = 3;
+// Diameter of the mounting screw holes (e.g., 3mm)
+screw_hole_dia = 3; 
 
-// --- Tolerance Settings ---
-// Internal gap between moving parts (0.4 - 0.5 is usually good for PLA)
-clearance = 0.4;
+// Diameter of the hinge knuckle (outer cylinder)
+knuckle_dia = 6; 
 
-// Gap between the side-by-side knuckles
-knuckle_gap = 0.6; 
+// Clearance gap between moving parts (0.3 to 0.5 is standard for FDM)
+tolerance = 0.4; // [0.2:0.1:0.6]
 
-// Smoothness of curves
+// Resolution of curves
 $fn = 60;
 
-// --- Derived Calculations ---
-knuckle_outer_r = wall_thickness; // Radius is same as thickness (6mm diam total)
-pin_r = wall_thickness / 2;       // 3mm diam pin
-z_offset = 0;                     // Vertical position base
+// --- Calculations ---
 
-// Width of the individual knuckle segments
-// We have 2 outer segments and 1 inner segment
-segment_width = (total_width - (2 * knuckle_gap)) / 3;
+// Radius of the knuckle
+k_rad = knuckle_dia / 2;
 
-// ==========================================
-// Main Render
-// ==========================================
+// Calculate segments: 2 outer (Part A), 1 inner (Part B)
+// We want roughly equal thirds, but accounting for gaps
+segment_width = (hinge_width - (2 * tolerance)) / 3;
+
+// --- Main Rendering ---
 
 union() {
-    // Part 1: Outer Knuckles + Pin + Leaf 1
+    // Part A: The "Outer" Wings (e.g., Box Side)
     color("RoyalBlue") 
         part_outer();
 
-    // Part 2: Inner Knuckle + Leaf 2
+    // Part B: The "Inner" Center (e.g., Lid Side)
     color("Orange") 
         part_inner();
 }
 
-
-// ==========================================
-// Modules
-// ==========================================
+// --- Modules ---
 
 module part_outer() {
-    union() {
-        // 1. The Leaf
-        difference() {
-            translate([-leaf_length, 0, 0])
-                cube([leaf_length, total_width, wall_thickness]);
-            
-            // Mounting Holes
-            translate([-leaf_length/2, total_width/2, -1])
-                cylinder(h = wall_thickness + 2, d = hole_diameter);
-            
-            // Chamfer for screw head
-            translate([-leaf_length/2, total_width/2, wall_thickness - 1.5])
-                cylinder(h = 2.5, d1 = hole_diameter, d2 = hole_diameter + 3);
-        }
-
-        // 2. The Outer Knuckles
-        // Segment 1 (Bottom/Front in Y)
-        translate([0, 0, wall_thickness])
-        rotate([0, 90, 0])
-            cylinder(r=knuckle_outer_r, h=segment_width);
-            
-        // Segment 2 (Top/Back in Y)
-        translate([0, total_width - segment_width, wall_thickness])
-        rotate([0, 90, 0])
-            cylinder(r=knuckle_outer_r, h=segment_width);
+    // Left Wing
+    translate([-hinge_width/2, 0, 0]) {
+        // Leaf Geometry
+        translate([0, k_rad - leaf_thickness, 0])
+            leaf_base(segment_width);
         
-        // 3. The Pin (Runs through the whole length)
-        translate([0, 0, wall_thickness])
-        rotate([-90, 0, 0])
-            cylinder(r=pin_r, h=total_width);
-            
-        // Connection from Leaf to Knuckle
-        // We add a filler block to ensure the cylinder touches the leaf firmly
-        translate([-wall_thickness, 0, 0])
-            cube([wall_thickness, segment_width, wall_thickness]);
+        // Knuckle Geometry
+        translate([segment_width/2, 0, k_rad]) {
+            rotate([0, 90, 0]) {
+                // Main Cylinder
+                cylinder(h = segment_width, r = k_rad, center = true);
+                // The Pin (Cone pointing inwards)
+                translate([0, 0, segment_width/2])
+                    cylinder(h = segment_width/2, r1 = k_rad/1.5, r2 = k_rad/3);
+            }
+        }
+    }
 
-        translate([-wall_thickness, total_width - segment_width, 0])
-            cube([wall_thickness, segment_width, wall_thickness]);
+    // Right Wing
+    translate([hinge_width/2 - segment_width, 0, 0]) {
+        // Leaf Geometry
+        translate([0, k_rad - leaf_thickness, 0])
+            leaf_base(segment_width);
+            
+        // Knuckle Geometry
+        translate([segment_width/2, 0, k_rad]) {
+            rotate([0, 90, 0]) {
+                // Main Cylinder
+                cylinder(h = segment_width, r = k_rad, center = true);
+                // The Pin (Cone pointing inwards)
+                translate([0, 0, -segment_width])
+                    cylinder(h = segment_width/2, r1 = k_rad/3, r2 = k_rad/1.5);
+            }
+        }
     }
 }
 
 module part_inner() {
+    center_w = segment_width;
     
-    // Y Position of the central segment
-    y_pos = segment_width + knuckle_gap;
-    
-    difference() {
-        union() {
-            // 1. The Leaf
-            translate([0, 0, 0])
-                cube([leaf_length, total_width, wall_thickness]);
+    translate([-center_w/2, 0, 0]) {
+        // Leaf Geometry (Mirrored to the other side)
+        translate([0, -leaf_length-k_rad, 0])
+            leaf_base(center_w);
+        
+        // Knuckle Geometry
+        translate([center_w/2, 0, k_rad]) {
+            difference() {
+                // Main Block
+                rotate([0, 90, 0])
+                    cylinder(h = center_w, r = k_rad, center = true);
+                
+                // Minus Left Cone Chamber (with tolerance)
+                rotate([0, 90, 0])
+                    translate([0, 0, -center_w/2 - 0.05])
+                    cylinder(h = (center_w/2) + 0.1, r1 = k_rad/3 + tolerance, r2 = k_rad/1.5 + tolerance);
 
-            // 2. The Inner Knuckle
-            translate([0, y_pos, wall_thickness])
-            rotate([0, 90, 0])
-                cylinder(r=knuckle_outer_r, h=segment_width);
-            
-            // Connection from Leaf to Knuckle
-            translate([0, y_pos, 0])
-                cube([wall_thickness, segment_width, wall_thickness]);
+                // Minus Right Cone Chamber (with tolerance)
+                rotate([0, 90, 0])
+                    translate([0, 0, 0]) // Starts at center
+                    cylinder(h = (center_w/2) + 0.1, r1 = k_rad/1.5 + tolerance, r2 = k_rad/3 + tolerance);
+                
+                // Center Drill Channel (Backup for simple filament hinge if print fails)
+                rotate([0,90,0])
+                    cylinder(h=center_w+2, r=0.5, center=true);
+            }
         }
-        
-        // CUTOUTS
-        
-        // 1. Hole for the Pin (Pin radius + clearance)
-        translate([-1, y_pos - 1, wall_thickness]) // -1 extends cut region
-        rotate([-90, 0, 0])
-            cylinder(r=pin_r + clearance, h=segment_width + 2);
-            
-        // 2. Mounting Hole
-        translate([leaf_length/2, total_width/2, -1])
-            cylinder(h = wall_thickness + 2, d = hole_diameter);
-            
-        // 3. Chamfer for screw head
-        translate([leaf_length/2, total_width/2, wall_thickness - 1.5]) // Countersink depth
-            cylinder(h = 2.5, d1 = hole_diameter, d2 = hole_diameter + 3);
+    }
+}
 
-        // 4. Cutout for the neighbor outer knuckles (creates the gaps)
-        // We cut away the leaf material where the outer knuckles need to sit
-        translate([-0.1, -0.1, -0.1])
-            cube([leaf_length+1, y_pos, wall_thickness+1]);
-            
-        translate([-0.1, y_pos + segment_width, -0.1])
-             cube([leaf_length+1, segment_width + knuckle_gap + 1, wall_thickness+1]);
+module leaf_base(w) {
+    difference() {
+        // Main Plate
+        cube([w, leaf_length, leaf_thickness]);
+        
+        // Mounting Hole
+        translate([w/2, leaf_length/2 + k_rad/2, -0.1]) {
+            // Shaft
+            cylinder(h = leaf_thickness + 0.2, d = screw_hole_dia);
+            // Countersink head (Top side)
+            translate([0,0, leaf_thickness - (screw_hole_dia/2)])
+                cylinder(h = screw_hole_dia/2 + 0.1, d1 = screw_hole_dia, d2 = screw_hole_dia * 2);
+        }
     }
 }

@@ -1,19 +1,10 @@
 # OpenSCAD Bench
 
-**A community-driven benchmark for evaluating how well LLMs can write OpenSCAD code.**
+**A community driven benchmark for evaluating object design skills of LLMs in OpenSCAD.**
 
 ## The Insight
 
-Real world experience shows significant quality gaps between LLMs when generating OpenSCAD code. The differentiating factor usually isn't syntax, most models handle that fine. The real challenge is **applied mechanical reasoning**.
-
-This includes:
-- **Spatial reasoning** — can it think in 3D?
-- **Manufacturing awareness** — will this actually print? (tolerances, clearances, wall thickness)
-- **Functional inference** — what does this thing need to do? (unstated requirements)
-- **Domain knowledge** — how does/will the product actually work?
-- **Much More** - that I can't think to list.
-
-This benchmark focuses on qualitative "vibe checks" rather than rigid automated scoring. Can the model actually build the thing I asked for?
+Real world experience shows significant quality gaps between LLMs when generating OpenSCAD code. The differentiating factor usually isn't syntax, most models handle that fine. The real challenge is **mechanical reasoning** or simply put, object design.
 
 ## How It Works
 

@@ -7,10 +7,11 @@ It also provides utilities for saving run metadata.
 import json
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from config import ApiConfig
@@ -45,14 +46,14 @@ def save_scad(code: str, output_dir: Path, filename: str = "attempt.scad") -> Pa
 
 
 def render_stl(
-    scad_path: Path, openscad_path: str, timeout: float = 60.0
+    scad_path: Path, openscad_path: str, timeout: float = 1200.0
 ) -> RenderResult:
     """Render an OpenSCAD file to STL.
 
     Args:
         scad_path: Path to the .scad file to render.
         openscad_path: Path to the OpenSCAD executable.
-        timeout: Maximum time in seconds to wait for rendering (default: 60).
+        timeout: Maximum time in seconds to wait for rendering (default: 1200).
 
     Returns:
         RenderResult with success/failure information.
@@ -113,7 +114,7 @@ def render_stl(
 
 
 def process_attempt(
-    code: str, output_dir: Path, openscad_path: str, timeout: float = 60.0
+    code: str, output_dir: Path, openscad_path: str, timeout: float = 1200.0
 ) -> RenderResult:
     """Save OpenSCAD code and render it to STL.
 
@@ -123,7 +124,7 @@ def process_attempt(
         code: The OpenSCAD code to render.
         output_dir: Directory where files will be saved.
         openscad_path: Path to the OpenSCAD executable.
-        timeout: Maximum time in seconds to wait for rendering (default: 60).
+        timeout: Maximum time in seconds to wait for rendering (default: 1200).
 
     Returns:
         RenderResult with success/failure information.
@@ -132,11 +133,51 @@ def process_attempt(
     return render_stl(scad_path, openscad_path, timeout=timeout)
 
 
+def process_renders_parallel(
+    render_tasks: list[tuple[str, Path, str]],
+    openscad_path: str,
+    max_workers: int = 5,
+    timeout: float = 1200.0,
+    on_complete: Callable[[str, RenderResult], None] | None = None,
+) -> dict[str, RenderResult]:
+    """Process multiple renders in parallel with thread pool.
+    
+    Args:
+        render_tasks: List of tuples (model_name, output_dir, code) to render.
+        openscad_path: Path to the OpenSCAD executable.
+        max_workers: Maximum number of concurrent render threads (default: 5).
+        timeout: Maximum time in seconds per render (default: 1200).
+        on_complete: Optional callback function(model_name, RenderResult) called when each render completes.
+    
+    Returns:
+        Dictionary mapping model names to their RenderResult.
+    """
+    results: dict[str, RenderResult] = {}
+    
+    def render_task(model: str, output_dir: Path, code: str) -> tuple[str, RenderResult]:
+        scad_path = save_scad(code, output_dir)
+        result = render_stl(scad_path, openscad_path, timeout)
+        return model, result
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(render_task, model, output_dir, code): model
+            for model, output_dir, code in render_tasks
+        }
+        
+        for future in as_completed(futures):
+            model, result = future.result()
+            results[model] = result
+            if on_complete:
+                on_complete(model, result)
+    
+    return results
+
+
 def save_params_json(
     output_dir: Path,
     model: str,
     api_config: "ApiConfig",
-    challenge_name: str | None = None
 ) -> Path:
     """Save run parameters to a params.json file.
     
@@ -147,7 +188,6 @@ def save_params_json(
         output_dir: Directory where params.json will be saved.
         model: The model ID used for this run.
         api_config: The API configuration with LLM parameters.
-        challenge_name: Optional name of the challenge being run.
         
     Returns:
         Path to the saved params.json file.
@@ -160,10 +200,6 @@ def save_params_json(
         "timestamp": datetime.now().isoformat(),
         "timeout": api_config.timeout,
     }
-    
-    # Add challenge name if provided
-    if challenge_name:
-        params_data["challenge"] = challenge_name
     
     # Add all LLM parameters that are set
     llm_params = api_config.get_all_params()

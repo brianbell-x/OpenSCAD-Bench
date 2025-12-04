@@ -1,128 +1,97 @@
 // ==========================================
-// Headphone Desk Clamp Hook
+// Parameter Settings
 // ==========================================
 
-/* [Dimensions] */
-// Thickness of your desk in mm
-desk_thickness = 25; 
+// Thickness of your desk (mm)
+desk_thickness = 25;
 
-// How far the hook extends from the desk edge
-extension_length = 50; 
+// How far the hook sticks out from the edge of the desk (mm)
+hook_reach = 50;
 
-// Width of the hook (wide enough for the headband)
-hook_width = 30; 
+// How deep the clamp goes onto the desk (mm)
+clamp_depth = 45;
 
-// Structural wall thickness (min 4mm recommended)
-wall_thickness = 5;
+// Width of the hook (width of the headband contact area) (mm)
+part_width = 25;
 
-// Depth of the clamp on top of the desk
-clamp_depth = 40; 
+// Minimum wall thickness (mm) - kept >4mm for sturdiness
+wall_thick = 6;
 
-/* [Friction Fit Settings] */
-// Extra gap at the opening for easy insertion (mm)
-opening_tolerance = 0.5; 
-// Pinch at the back of the clamp (negative makes it tighter than desk_thickness)
-pinch_tightness = 0.0; 
+// Tolerance for the clamp gap (mm). 
+// 0.4mm usually provides a nice friction fit for PLA/PETG.
+tolerance = 0.4;
 
-/* [Geometry] */
-// Radius of the curve that holds the headphones
-rest_curve_radius = 25; 
-// Height of the lip at the end to stop falling
-lip_height = 8; 
-
-// Smoothness of curves
-$fn = 100;
+// Resolution of curves
+$fn = 100; 
 
 // ==========================================
-// Main Geometry Construction
+// Main Geometry
 // ==========================================
 
-linear_extrude(height = hook_width) {
-    headphone_hook_profile();
-}
+// Rotate to lay flat on the print bed for maximum strength
+rotate([0, -90, 0])
+    headphone_hook();
 
-module headphone_hook_profile() {
-    
-    // Calculate total dimensions
-    total_height = desk_thickness + (wall_thickness * 2);
-    
-    // The arm extends from the back of the clamp
-    arm_total_len = clamp_depth + extension_length;
-
-    difference() {
-        // 1. POSITIVE SHAPE (The Body)
-        union() {
-            // The Main Clamp C-Shape and Extension Arm combined
-            // We use hull() to blend shapes together smoothly
-            
-            hull() {
-                // Top Plate Anchor
-                translate([0, total_height - wall_thickness])
-                    square([clamp_depth, wall_thickness]);
-                
-                // Vertical Spine (Back of clamp)
-                translate([0, 0])
-                    square([wall_thickness, total_height]);
-                
-                // Bottom Arm (The part the hook attaches to)
-                translate([0, 0])
-                    square([arm_total_len, wall_thickness]);
-            }
-
-            // The Headphone Rest (Curved area)
-            // Situated at the end of the extension
-            translate([arm_total_len, wall_thickness + rest_curve_radius*0.3]) {
-                rotate([0, 0, 0])
-                intersection() {
-                    // This circle creates the gentle arc for the band
-                    translate([-rest_curve_radius/2, -rest_curve_radius + 2])
-                        circle(r=rest_curve_radius);
+module headphone_hook() {
+    linear_extrude(height = part_width) {
+        difference() {
+            // 1. The Main Body Shape (with rounded corners)
+            offset(r = 2) {
+                union() {
+                    // Top Clamp Arm
+                    translate([-clamp_depth, desk_thickness + tolerance])
+                        square([clamp_depth + wall_thick, wall_thick - 2]); // -2 accounts for offset
                     
-                    // Limit the height so it doesn't become a huge ball
-                    translate([-rest_curve_radius, 0])
-                        square([rest_curve_radius*2, lip_height + 5]);
+                    // Spine (Vertical back part)
+                    translate([0, -wall_thick])
+                        square([wall_thick, desk_thickness + tolerance + 2*wall_thick]);
+                    
+                    // The Hook / Headband Rest
+                    // We construct this geometry specifically to be curved
+                    translate([wall_thick, -wall_thick])
+                        hook_geometry();
                 }
             }
-            
-            // The Lip (The nub at the very end)
-            translate([arm_total_len + (rest_curve_radius/2) - 2, wall_thickness + lip_height])
-                circle(r=wall_thickness/1.5);
-                
-            // Fill the gap between arm and lip for a smooth transition
-            hull() {
-                translate([arm_total_len - 10, wall_thickness]) 
-                    square([10, 0.1]); // Base on arm
-                translate([arm_total_len + (rest_curve_radius/2) - 2, wall_thickness + lip_height])
-                    circle(r=wall_thickness/1.5); // The Lip
-            }
-        }
 
-        // 2. NEGATIVE SHAPE (The Desk Cutout)
-        // We add a slight taper to create a wedging action (friction fit)
-        translate([wall_thickness, wall_thickness]) {
-            polygon(points=[
-                [0, 0], // Bottom back
-                [clamp_depth + 10, 0], // Bottom front (extending out to ensure cut)
-                
-                // Top front (includes tolerance for loose fit at opening)
-                [clamp_depth + 10, desk_thickness + opening_tolerance], 
-                
-                // Top back (exact fit or slightly pinch)
-                [0, desk_thickness - pinch_tightness] 
-            ]);
+            // 2. Subtract the empty space for the Desk
+            // We treat zero (Y=0) as the bottom surface of the desk
+            desk_cutout();
+        }
+    }
+}
+
+module hook_geometry() {
+    // This creates the "J" shape with a curved top surface
+    // preventing creasing of the headband.
+    union() {
+        intersection() {
+            // Boundary box for the hook arm
+            translate([0, -30]) square([hook_reach, 30]);
+            
+            // tremendous circle to create a gentle "convex" arch
+            // This mimics the shape of a head
+            translate([hook_reach / 2, -55]) 
+                circle(r = 60);
         }
         
-        // 3. Round internal corner for stress relief/strength
-        // Sharp internal corners break easily. We drill a small relief hole 
-        // essentially by hulling a circle in the subtractive layer, 
-        // but here we just ensure the spine-thickess absorbs the stress.
-        // Instead, we add a chamfer to the cutout entrance for easy mounting.
-        translate([wall_thickness + clamp_depth, wall_thickness - 2])
-            rotate([0, 0, 45])
-            square([5, 5]);
-        
-        translate([wall_thickness + clamp_depth, wall_thickness + desk_thickness + opening_tolerance + 2])
-            rotate([0, 0, 45])
-            square([5, 5], center=true);
+        // The Lip at the end (to stop headphones sliding off)
+        translate([hook_reach - 4, 0]) 
+            hull() {
+                translate([0, -5]) circle(d=5);
+                translate([0, 5]) circle(d=5);
+            }
     }
+}
+
+module desk_cutout() {
+    // Main slot
+    translate([-clamp_depth - 10, 0])
+        square([clamp_depth + 10, desk_thickness + tolerance]);
+    
+    // Chamfer/Flare at the opening to help slide it on
+    translate([-clamp_depth, desk_thickness + tolerance])
+        polygon(points=[[0,0], [-2, 2], [0, 2]]);
+        
+    translate([-clamp_depth, 0])
+        polygon(points=[[0,0], [-2, -2], [0, -2]]);
 }

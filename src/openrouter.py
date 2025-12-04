@@ -2,7 +2,7 @@
 
 import json
 import re
-from typing import Callable, Generator, Optional
+from typing import Callable, Generator, Optional, Union
 
 import requests
 
@@ -44,7 +44,7 @@ class ContentFilterError(OpenRouterError):
 def _build_payload(
     model: str,
     system_prompt: str,
-    user_prompt: str,
+    user_prompt: Union[str, list],
     api_config: ApiConfig
 ) -> dict:
     """Build the API request payload.
@@ -52,7 +52,8 @@ def _build_payload(
     Args:
         model: The model ID (e.g., 'openai/gpt-4o').
         system_prompt: The system prompt to set context.
-        user_prompt: The user's prompt/request.
+        user_prompt: The user's prompt/request. Can be a string or a list
+            containing text and image content parts.
         api_config: API configuration settings (includes LLM parameters).
         
     Returns:
@@ -186,7 +187,7 @@ def _check_response_error(data: dict, model: str) -> None:
 def send_prompt_streaming(
     model: str,
     system_prompt: str,
-    user_prompt: str,
+    user_prompt: Union[str, list],
     api_config: ApiConfig,
     api_key: str,
     silent: bool = False,
@@ -352,7 +353,7 @@ def send_prompt_streaming(
 def send_prompt(
     model: str,
     system_prompt: str,
-    user_prompt: str,
+    user_prompt: Union[str, list],
     api_config: ApiConfig,
     api_key: str
 ) -> dict:

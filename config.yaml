@@ -13,12 +13,12 @@ models:
   - deepseek/deepseek-v3.2
 
 # Challenges to run: "all" or list specific challenge folder names
-challenges: all
+# challenges: all
 
 # To run specific challenges only:
-# challenges:
-#   - box-lid-hinge
-#   - headphone-hook
+challenges:
+  - toroidal-propellers
+  #- headphone-hook
 
 # Exclude specific challenges (only when challenges: all)
 # exclude_challenges:
@@ -61,3 +61,11 @@ api:
   #   effort: medium        # "low", "medium", or "high"
   #   max_tokens: null      # Specific token limit (alternative to effort)
   #   exclude: false        # Run reasoning but don't return it
+
+# Animation settings for generating rotating WebM previews of STL files
+animation:
+  enabled: true # Set to true to generate animations after successful renders
+  duration: 3.0   # Duration in seconds for full 360° rotation
+  fps: 24         # Frames per second
+  resolution: [800, 600]  # Output video resolution [width, height]
+  ffmpeg_path: C:/ffmpeg/bin/ffmpeg.exe  # Explicit path since VS Code terminal may not have updated PATH

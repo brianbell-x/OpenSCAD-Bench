@@ -1,11 +1,11 @@
 {
-  "id": "gen-1764794755-ITJpLetXBssOsUY1VHTe",
+  "id": "gen-1764887371-RBqNX8iyCOXzY60lbo4q",
   "model": "x-ai/grok-4-fast",
   "choices": [
     {
       "message": {
         "role": "assistant",
-        "content": "```openscad\ndesk_thickness = 25;\nwall = 4;\nunder_depth = 30;\next_width = 30; // extrusion width\nextension = 50;\nhook_down = 20;\nround_radius = 8;\n\nmodule arm_profile() {\n    difference() {\n        union() {\n            translate([0, desk_thickness + wall]) square([extension, wall]);\n            translate([extension, desk_thickness + wall - hook_down]) square([wall, hook_down + wall]);\n        }\n        translate([extension, desk_thickness + wall]) circle(r = round_radius);\n    }\n}\n\nmodule clamp_profile() {\n    union() {\n        // bottom jaw\n        translate([-under_depth, 0]) square([under_depth, wall]);\n        // vertical back\n        translate([0, 0]) square([wall, desk_thickness + 2 * wall]);\n        // arm with hook\n        arm_profile();\n    }\n}\n\nlinear_extrude(height = ext_width, center = true, convexity = 10) {\n    clamp_profile();\n}\n```"
+        "content": "```openscad\n// Headphone hook clamp for 25mm desk thickness\n// Extends 50mm out, curved holding part via rounded bend\n// Sturdy 6mm walls, friction C-clamp (no screws)\n\ndesk_thickness = 25;\narm_thick = 6;\nback_thick = 8;\nclamp_depth = 15;\nwidth = 25;\nhook_extension = 50;\nhang_length = 25;\nround_r = 5;\n\nunion() {\n    // Bottom arm (under desk)\n    translate([0, -width/2, -arm_thick]) cube([clamp_depth, width, arm_thick]);\n    \n    // Top arm (over desk)\n    translate([0, -width/2, desk_thickness]) cube([clamp_depth, width, arm_thick]);\n    \n    // Vertical connector (back of C-clamp)\n    translate([-back_thick, -width/2, -arm_thick]) cube([back_thick, width, desk_thickness + 2 * arm_thick]);\n    \n    // Rounded hook (L-shaped with rounded bend for curved holding)\n    minkowski() {\n        union() {\n            // Horizontal extension arm\n            translate([-back_thick - hook_extension, -width/2, desk_thickness]) cube([hook_extension, width, arm_thick]);\n            \n            // Vertical drop at end\n            translate([-back_thick - hook_extension - arm_thick, -width/2, desk_thickness - hang_length]) cube([arm_thick, width, hang_length]);\n        }\n        sphere(round_r);\n    }\n}\n```"
       },
       "finish_reason": "stop"
     }

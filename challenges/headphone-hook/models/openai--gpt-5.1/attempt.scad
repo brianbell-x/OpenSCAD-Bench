@@ -1,96 +1,78 @@
-// Headphone hook that clamps onto a 25 mm thick desk
-// Units: millimeters
+/*
+Headphone Hook Clamp for 25mm Desk
 
-//////////////////// PARAMETERS ////////////////////
+- Desk thickness: param desk_thickness (default 25 mm)
+- Friction-fit C-clamp, no screws
+- Hanger extends ~50 mm from desk
+- Curved cylindrical hanger to avoid headband creasing
+- Minimum wall thickness 4 mm
+*/
 
 desk_thickness   = 25;   // actual desk thickness
-wall_thickness   = 4;    // minimum structural wall thickness
-hook_width       = 30;   // width of hook (along desk edge)
-clip_reach       = 30;   // how far top/bottom arms reach onto desk
-hook_length      = 50;   // how far the headphone support extends out from desk
-hook_thickness   = 18;   // vertical thickness of the curved support
-curve_radius     = 60;   // radius for the curved headband support
+clamp_clearance  = 0.6;  // extra space over desk_thickness; tweak for your printer
+wall_thickness   = 4;    // minimum wall thickness
+arm_depth        = 25;   // how far the clamp wraps over/under the desk edge
+hanger_length    = 50;   // how far the headphone hanger sticks out from the desk
+hanger_radius    = 15;   // curvature radius for hanger (~30mm wide contact area)
 
-top_arm_height    = wall_thickness;
-bottom_arm_height = wall_thickness;
+$fn = 64;
 
-$fn = 96;  // smoothness for curves
+// Main C-shaped clamp body
+module clamp_body() {
+    width      = 2 * hanger_radius;  // width along the desk edge, matches hanger width
+    gap_half   = (desk_thickness + clamp_clearance) / 2;
+    outer_half = gap_half + wall_thickness;
 
-//////////////////// MAIN CALL ////////////////////
+    difference() {
+        // Outer C-clamp shell.
+        // Backplate is at x in [-wall_thickness, 0].
+        // Desk outer face will sit at x = 0.
+        translate([-wall_thickness, -outer_half, -width/2])
+            cube([wall_thickness + arm_depth, 2 * outer_half, width]);
 
-headphone_hook();
+        // Inner void where the desk goes (open on the arm side).
+        // This forms the "C" shape: top and bottom lips plus backplate.
+        translate([0, -gap_half, -width/2 - 1])
+            cube([arm_depth + 1, 2 * gap_half, width + 2]);
+    }
+}
 
-//////////////////// MODULES ////////////////////
+// Curved headphone hanger
+module hanger() {
+    R       = hanger_radius;
+    len     = hanger_length;
+    width   = 2 * R;
 
-module headphone_hook() {
-    // Câshaped clamp + curved support hook
+    gap_half   = (desk_thickness + clamp_clearance) / 2;
+    outer_half = gap_half + wall_thickness;
+
+    // Place hanger just below the bottom of the clamp
+    // Clamp bottom is at y = -outer_half
+    top_y = -outer_half - 1; // 1 mm clearance below clamp
+    dy    = top_y - R;       // segment we keep is y in [0, R], so shift so top (R) -> top_y
+
+    // Attach to the outside of the backplate:
+    // backplate outer face is at x = -wall_thickness
+    translate([-wall_thickness - len, dy, 0])
+    intersection() {
+        // Full round bar, axis along X
+        rotate([0, 90, 0])
+            cylinder(h = len, r = R, center = false);
+
+        // Keep only the top half (y â [0, R]) so the top is nicely curved
+        // and the bottom is flattened for strength.
+        translate([-1, 0, -R - 1])
+            cube([len + 2, R + 1, 2 * R + 2]);
+    }
+}
+
+// Assembly
+module headphone_hook_clamp() {
     union() {
         clamp_body();
-        curved_support();
+        hanger();
     }
 }
 
-// C-shaped clamp that slides over the desk front edge (no screws)
-module clamp_body() {
-    // Coordinate system:
-    // X: horizontal, desk depth direction (X >= 0 is on/under the desk surface)
-    // Y: along desk edge (width)
-    // Z: vertical; desk bottom is Z=0, desk top is Z=desk_thickness
-
-    // Vertical back plate that sits against the front edge of the desk
-    translate([-wall_thickness, 0, -bottom_arm_height])
-        cube([wall_thickness,
-              hook_width,
-              desk_thickness + top_arm_height + bottom_arm_height]);
-
-    // Top arm over the desk surface
-    translate([0, 0, desk_thickness])
-        cube([clip_reach,
-              hook_width,
-              top_arm_height]);
-
-    // Bottom arm under the desk surface
-    translate([0, 0, -bottom_arm_height])
-        cube([clip_reach,
-              hook_width,
-              bottom_arm_height]);
-}
-
-// Curved support that extends out from the desk and cradles the headband
-module curved_support() {
-    // The support is entirely below the desk and attached to the bottom arm.
-    // Highest point of the curved support is flush with the underside of
-    // the bottom arm at Z = -bottom_arm_height.
-
-    intersection() {
-        // Rectangular block that defines overall size of the support
-        // X: from -hook_length (away from desk) to 0 (at desk front edge)
-        // Z: from -bottom_arm_height - hook_thickness up to -bottom_arm_height
-        translate([-hook_length, 0, -bottom_arm_height - hook_thickness])
-            cube([hook_length,
-                  hook_width,
-                  hook_thickness]);
-
-        // Large cylinder whose outer surface gives the curved top
-        // Axis along Y; we intersect with the block to get a domed top.
-        translate([-hook_length/2, hook_width/2, -bottom_arm_height - curve_radius])
-            rotate([90, 0, 0])  // axis along global Y
-                cylinder(r = curve_radius,
-                         h = hook_width,
-                         center = true);
-    }
-}
-
-/*
-// Optional: visual desk reference (commented out; for preview only)
-module desk_preview() {
-    color([0.8, 0.7, 0.6, 0.3])
-        translate([0, 0, 0])
-            cube([200, 200, desk_thickness], center = false);
-}
-
-// Uncomment to preview clamp on a desk:
-// union() {
-//     desk_preview();
-//     headphone_hook();
-// }
+// Render final part
+headphone_hook_clamp();

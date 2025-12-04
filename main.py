@@ -18,8 +18,9 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from src.config import get_config, load_config, ConfigError
 from src.openrouter import send_prompt, extract_code, OpenRouterError
 from src.parallel import run_models_parallel, ModelStatus
-from challenges import discover_challenges, filter_challenges, get_model_output_dir, ChallengeError
-from src.renderer import process_attempt, save_params_json
+from challenges import discover_challenges, filter_challenges, get_model_output_dir, prepare_user_prompt, ChallengeError
+from src.renderer import process_attempt, process_renders_parallel, save_params_json
+from src.animator import animate_stl, AnimationResult
 
 
 @dataclass
@@ -198,21 +199,27 @@ def run_benchmark(
             challenge_idx, len(challenges), challenge.name, len(config.models)
         )
         
+        # Prepare user prompt with reference image if present
+        user_prompt = prepare_user_prompt(challenge)
+        
         # Run all models in parallel for this challenge
         model_statuses = run_models_parallel(
             challenge_name=challenge.name,
-            challenge_prompt=challenge.prompt,
+            challenge_prompt=user_prompt,
             models=config.models,
             config=config,
         )
         
-        # Process results for each model (render, save, etc.)
+        # Prepare render tasks and process API responses
+        render_tasks: list[tuple[str, Path, str]] = []
+        model_results: dict[str, BenchmarkResult] = {}
+        
         for model, status in model_statuses.items():
             # Get output directory for this attempt
             output_dir = get_model_output_dir(challenge, model, config.api)
             
             # Save params.json documenting this run's configuration
-            save_params_json(output_dir, model, config.api, challenge.name)
+            save_params_json(output_dir, model, config.api)
             
             api_success = False
             render_success = False
@@ -220,7 +227,7 @@ def run_benchmark(
             render_time = None
             
             if status.status == "done" and status.response is not None:
-                # API call succeeded - save response and render
+                # API call succeeded - save response and prepare for rendering
                 api_success = True
                 
                 # Save raw response for debugging
@@ -231,46 +238,13 @@ def run_benchmark(
                     code = extract_code(status.response)
                     logger.debug("Successfully extracted code (%d bytes) for %s", len(code), model)
                     
-                    # Render to STL
-                    logger.debug("Rendering .scad to .stl for %s", model)
-                    render_result = process_attempt(
-                        code=code,
-                        output_dir=output_dir,
-                        openscad_path=config.openscad_path
-                    )
+                    # Add to render tasks for parallel processing
+                    render_tasks.append((model, output_dir, code))
                     
-                    render_success = render_result.success
-                    render_time = render_result.render_time
-                    
-                    if render_success:
-                        logger.info(
-                            "✓ Success: %s × %s (render: %.2fs)",
-                            challenge.name, model, render_time
-                        )
-                    else:
-                        error_message = render_result.error_message
-                        logger.warning(
-                            "✗ Render failed: %s × %s - %s",
-                            challenge.name, model, error_message
-                        )
-                        
-                        # Save render error to log
-                        error_file = output_dir / "render_error.log"
-                        with open(error_file, 'w', encoding='utf-8') as f:
-                            f.write(f"Render Error at {datetime.now().isoformat()}\n")
-                            f.write(f"Model: {model}\n")
-                            f.write(f"Challenge: {challenge.name}\n")
-                            f.write(f"Error: {error_message}\n")
-                            f.write(f"SCAD file: {render_result.scad_path}\n")
-                            
                 except ValueError as e:
                     error_message = f"Failed to extract code: {e}"
                     logger.error(error_message)
                     api_success = False
-                    
-                except Exception as e:
-                    error_message = f"Unexpected render error: {e}"
-                    logger.exception("Unexpected error during rendering for %s", model)
                     
             elif status.status == "error":
                 # API call failed
@@ -285,14 +259,90 @@ def run_benchmark(
                     f.write(f"Challenge: {challenge.name}\n")
                     f.write(f"Error: {error_message}\n")
             
-            results.append(BenchmarkResult(
+            # Store initial result (will update render status after parallel rendering)
+            model_results[model] = BenchmarkResult(
                 challenge=challenge.name,
                 model=model,
                 api_success=api_success,
                 render_success=render_success,
                 error_message=error_message,
                 render_time=render_time
-            ))
+            )
+        
+        # Process renders in parallel (max 5 threads)
+        if render_tasks:
+            logger.info("Rendering %d models in parallel (max 5 threads)", len(render_tasks))
+            
+            def on_render_complete(model: str, render_result) -> None:
+                """Callback when a render completes."""
+                result = model_results[model]
+                result.render_success = render_result.success
+                result.render_time = render_result.render_time
+                
+                if render_result.success:
+                    logger.info(
+                        "✓ Success: %s × %s (render: %.2fs)",
+                        challenge.name, model, render_result.render_time
+                    )
+                    
+                    # Generate animation if enabled
+                    if config.animation and config.animation.enabled and render_result.stl_path:
+                        try:
+                            logger.info("Generating animation for %s", render_result.stl_path)
+                            anim_result = animate_stl(
+                                stl_path=render_result.stl_path,
+                                duration=config.animation.duration,
+                                fps=config.animation.fps,
+                                resolution=tuple(config.animation.resolution),
+                                ffmpeg_path=config.animation.ffmpeg_path
+                            )
+                            
+                            if anim_result.success:
+                                logger.info(
+                                    "✓ Animation created: %s (%.2fs)",
+                                    anim_result.output_path, anim_result.animation_time
+                                )
+                            else:
+                                logger.warning(
+                                    "✗ Animation failed: %s", anim_result.error
+                                )
+                        except Exception as e:
+                            logger.error("Unexpected error during animation generation: %s", e)
+                else:
+                    result.error_message = render_result.error_message
+                    logger.warning(
+                        "✗ Render failed: %s × %s - %s",
+                        challenge.name, model, render_result.error_message
+                    )
+                    
+                    # Save render error to log
+                    output_dir = get_model_output_dir(challenge, model, config.api)
+                    error_file = output_dir / "render_error.log"
+                    with open(error_file, 'w', encoding='utf-8') as f:
+                        f.write(f"Render Error at {datetime.now().isoformat()}\n")
+                        f.write(f"Model: {model}\n")
+                        f.write(f"Challenge: {challenge.name}\n")
+                        f.write(f"Error: {render_result.error_message}\n")
+                        f.write(f"SCAD file: {render_result.scad_path}\n")
+            
+            try:
+                process_renders_parallel(
+                    render_tasks=render_tasks,
+                    openscad_path=config.openscad_path,
+                    max_workers=5,
+                    timeout=1200.0,
+                    on_complete=on_render_complete,
+                )
+            except Exception as e:
+                logger.exception("Unexpected error during parallel rendering")
+                # Update any models that didn't get processed
+                for model, _, _ in render_tasks:
+                    result = model_results[model]
+                    if not result.render_success and result.error_message is None:
+                        result.error_message = f"Unexpected render error: {e}"
+        
+        # Add all results to the results list
+        results.extend(model_results.values())
     
     return results
 

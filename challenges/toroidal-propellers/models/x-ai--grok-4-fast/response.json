@@ -1,0 +1,13 @@
+{
+  "id": "gen-1764891088-Z2j4DBuaNClCXSJr24gk",
+  "model": "x-ai/grok-4-fast",
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "```openscad\n// Toroidal Propeller\n// Parameters\nhub_d = 15;\nhole_d = 5;\nhub_h = 10;\nband_width = 12;\nband_thick = 2;\ntip_r = 50;\narc_angle = 340;\nrise = 15;\nhub_r = hub_d / 2;\ndist = tip_r - hub_r;\ntheta_deg = atan(rise / dist) * 180 / PI;\nr1 = (tip_r - hub_r - band_width) / 2;\nr2 = r1 + band_width;\nx_c = hub_r + r1;\n\n// Module for partial annulus (2D)\nmodule partial_annulus(r_inner, r_outer, ang) {\n    half_ang = ang / 2;\n    difference() {\n        intersection() {\n            circle(r = r_outer, $fn = 128);\n            polygon(points = [\n                [0, 0],\n                [10000 * cos(-half_ang), 10000 * sin(-half_ang)],\n                [10000 * cos(half_ang), 10000 * sin(half_ang)]\n            ]);\n        }\n        intersection() {\n            circle(r = r_inner, $fn = 128);\n            polygon(points = [\n                [0, 0],\n                [10000 * cos(-half_ang), 10000 * sin(-half_ang)],\n                [10000 * cos(half_ang), 10000 * sin(half_ang)]\n            ]);\n        }\n    }\n}\n\n// Module for single flat blade (2D positioned)\nmodule flat_blade_2d() {\n    translate([x_c, 0])\n        partial_annulus(r1, r2, arc_angle);\n}\n\n// Module for tilted blade\nmodule tilted_blade() {\n    translate([hub_r, 0, 0])\n        rotate([0, theta_deg, 0])\n            translate([-hub_r, 0, 0])\n                linear_extrude(height = band_thick, center = true, $fn = 64)\n                    flat_blade_2d();\n    translate([0, 0, 5])\n        children();  // Not used, but to allow shift if needed; shift applied after\n}\n\n// Wait, correction: the translate z=5 is applied to the entire tilted blade\n// Redefine tilted_blade to include shift\nmodule tilted_blade() {\n    translate([0, 0, 5])\n        translate([hub_r, 0, 0])\n            rotate([0, theta_deg, 0])\n                translate([-hub_r, 0, 0])\n                    linear_extrude(height = band_thick, center = true, $fn = 64)\n                        flat_blade_2d();\n}\n\n// Hub\nmodule hub() {\n    translate([0, 0, 0])\n        difference() {\n            cylinder(h = hub_h, d = hub_d, $fn = 100);\n            translate([0, 0, -0.1])\n                cylinder(h = hub_h + 0.2, d = hole_d, $fn = 50);\n        }\n}\n\n// Assembly\nunion() {\n    hub();\n    for (i = [0 : 2]) {\n        rotate([0, 0, i * 120])\n            tilted_blade();\n    }\n}\n```"
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

@@ -197,6 +197,16 @@ class ApiConfig:
 
 
 @dataclass
+class AnimationConfig:
+    """Configuration for generating animations."""
+    enabled: bool = False
+    duration: float = 3.0  # seconds for full rotation
+    fps: int = 24
+    resolution: tuple[int, int] = (800, 600)
+    ffmpeg_path: Optional[str] = None  # None means use system PATH
+
+
+@dataclass
 class Config:
     """Main configuration for OpenSCAD benchmark automation."""
     models: list[str]
@@ -204,6 +214,7 @@ class Config:
     exclude_challenges: list[str] = field(default_factory=list)
     openscad_path: str = "openscad"
     api: ApiConfig = field(default_factory=ApiConfig)
+    animation: Optional[AnimationConfig] = None
     
     # Loaded at runtime
     _system_prompt: str = field(default="", repr=False)
@@ -490,6 +501,44 @@ def load_config(config_path: Union[str, Path]) -> Config:
         raise ConfigError("'api' must be a mapping (dictionary).")
     api_config = _validate_api_config(api_dict)
     
+    # Validate animation config
+    animation_config = None
+    if "animation" in raw_config:
+        anim_dict = raw_config["animation"]
+        if not isinstance(anim_dict, dict):
+            raise ConfigError("'animation' must be a mapping (dictionary).")
+        
+        animation_config = AnimationConfig()
+        
+        if "enabled" in anim_dict:
+            if not isinstance(anim_dict["enabled"], bool):
+                raise ConfigError("animation.enabled must be a boolean.")
+            animation_config.enabled = anim_dict["enabled"]
+            
+        if "duration" in anim_dict:
+            val = anim_dict["duration"]
+            if not isinstance(val, (int, float)) or val <= 0:
+                raise ConfigError("animation.duration must be a positive number.")
+            animation_config.duration = float(val)
+            
+        if "fps" in anim_dict:
+            val = anim_dict["fps"]
+            if not isinstance(val, int) or val <= 0:
+                raise ConfigError("animation.fps must be a positive integer.")
+            animation_config.fps = val
+            
+        if "resolution" in anim_dict:
+            val = anim_dict["resolution"]
+            if not isinstance(val, (list, tuple)) or len(val) != 2 or not all(isinstance(x, int) and x > 0 for x in val):
+                raise ConfigError("animation.resolution must be a tuple of 2 positive integers.")
+            animation_config.resolution = tuple(val)
+            
+        if "ffmpeg_path" in anim_dict:
+            val = anim_dict["ffmpeg_path"]
+            if val is not None and not isinstance(val, str):
+                raise ConfigError("animation.ffmpeg_path must be a string or null.")
+            animation_config.ffmpeg_path = val
+
     # Validate system prompt
     system_prompt = raw_config.get("system_prompt", "")
     if not system_prompt or not isinstance(system_prompt, str):
@@ -502,6 +551,7 @@ def load_config(config_path: Union[str, Path]) -> Config:
         exclude_challenges=exclude_challenges,
         openscad_path=raw_config.get("openscad_path", "openscad"),
         api=api_config,
+        animation=animation_config,
     )
     config._project_root = project_root
     config._system_prompt = system_prompt.strip()
@@ -549,6 +599,28 @@ def validate_openscad_path(config: Config) -> bool:
     return shutil.which(openscad_path) is not None
 
 
+def validate_ffmpeg_path(config: Config) -> Optional[str]:
+    """Check if ffmpeg is available and return its path.
+    
+    Args:
+        config: Configuration object.
+        
+    Returns:
+        Path to ffmpeg executable if found, None otherwise.
+    """
+    if not config.animation or not config.animation.enabled:
+        return None
+        
+    ffmpeg_path = config.animation.ffmpeg_path or "ffmpeg"
+    
+    # Check if it's an absolute path that exists
+    if Path(ffmpeg_path).is_file():
+        return str(Path(ffmpeg_path).resolve())
+        
+    # Check if it's in PATH
+    return shutil.which(ffmpeg_path)
+
+
 def get_config(config_path: Union[str, Path] = "config.yaml") -> Config:
     """Load and fully initialize configuration.
     
@@ -578,5 +650,13 @@ def get_config(config_path: Union[str, Path] = "config.yaml") -> Config:
             "Rendering will fail unless the path is corrected.",
             UserWarning
         )
+        
+    if config.animation and config.animation.enabled:
+        if not validate_ffmpeg_path(config):
+            warnings.warn(
+                f"ffmpeg executable not found (configured path: '{config.animation.ffmpeg_path or 'ffmpeg'}'). "
+                "Animation generation will be skipped.",
+                UserWarning
+            )
     
     return config
