@@ -1,11 +1,7 @@
 // Toroidal Propeller with 3 Blades
-// All dimensions in mm
+// Each blade is a wide flat band forming a nearly complete loop
 
-$fn = 100; // High resolution for smooth curves
-
-// Parameters
-num_blades = 3;
-blade_angle_spacing = 360 / num_blades; // 120 degrees
+$fn = 100;
 
 // Hub parameters
 hub_outer_diameter = 15;
@@ -14,10 +10,11 @@ mounting_hole_diameter = 5;
 
 // Blade parameters
 blade_loop_outer_diameter = 50;
-blade_band_width = 12; // Height of the flat band
-blade_band_thickness = 2; // Wall thickness
-blade_arc_degrees = 340; // Nearly complete loop
-blade_spiral_height = 15; // How high blades spiral up
+blade_band_width = 12;  // height of the flat band
+blade_band_thickness = 2;  // wall thickness
+blade_arc_degrees = 340;  // nearly complete loop
+blade_spiral_height = 15;  // vertical rise
+num_blades = 3;
 
 // Calculated values
 hub_radius = hub_outer_diameter / 2;
@@ -25,12 +22,43 @@ blade_loop_radius = blade_loop_outer_diameter / 2;
 blade_loop_inner_radius = blade_loop_radius - blade_band_thickness;
 
 // Center of blade loop offset from hub center
-blade_center_offset = 42; // Adjusted to achieve ~100mm tip-to-tip
+// Position so blade connects to hub and sweeps outward
+blade_center_offset = 25;  // distance from hub center to blade loop center
 
-// Tilt angle for propeller pitch (angle of blade plane relative to horizontal)
-blade_tilt_angle = 25; // degrees
+// Tilt angle for pitch (degrees)
+blade_tilt_angle = 20;
 
-// Module for the central hub
+// Module for a single blade band (nearly complete toroidal section)
+module blade_band() {
+    // Create a flat band as a partial cylinder shell
+    // The band is oriented with its axis vertical initially
+    
+    arc_start = 10;  // leave gap
+    arc_end = arc_start + blade_arc_degrees;
+    
+    difference() {
+        // Outer cylinder section
+        rotate([0, 0, arc_start])
+        rotate_extrude(angle = blade_arc_degrees, convexity = 4) {
+            translate([blade_loop_radius - blade_band_thickness/2, 0, 0])
+            square([blade_band_thickness, blade_band_width], center = true);
+        }
+    }
+}
+
+// Module for a single blade with tilt and positioning
+module blade() {
+    // Position the blade loop so it connects to the hub
+    // Tilt it to create pitch
+    // The blade starts near the hub and loops outward
+    
+    translate([blade_center_offset, 0, blade_spiral_height/2])
+    rotate([blade_tilt_angle, 0, 0])
+    translate([0, 0, -blade_band_width/2])
+    blade_band();
+}
+
+// Module for the hub
 module hub() {
     difference() {
         cylinder(h = hub_height, d = hub_outer_diameter, center = true);
@@ -38,65 +66,40 @@ module hub() {
     }
 }
 
-// Module for a single toroidal blade band
-module blade_band() {
-    // Create a wide flat band forming an arc
-    // The band is created by rotating a rectangle around the torus center
-    
-    arc_start = -blade_arc_degrees / 2;
-    arc_end = blade_arc_degrees / 2;
-    
-    rotate_extrude(angle = blade_arc_degrees, $fn = 120) {
-        translate([blade_loop_radius - blade_band_thickness/2, 0, 0])
-            square([blade_band_thickness, blade_band_width], center = true);
-    }
-}
-
-// Module for a single blade with tilt and positioning
-module blade() {
-    // Position blade loop center offset from hub
-    translate([blade_center_offset, 0, blade_spiral_height/2])
-    rotate([blade_tilt_angle, 0, 0]) // Tilt for pitch
-    rotate([0, 0, -blade_arc_degrees/2 + 90]) // Orient the gap
-    blade_band();
-}
-
-// Module for connection strut between hub and blade
-module blade_connection(angle) {
-    // Create a smooth connection from hub to the blade
+// Module for connection between blade and hub
+module blade_connector(blade_angle) {
+    // Create a smooth connection from hub to blade
+    rotate([0, 0, blade_angle])
     hull() {
-        // At hub
-        rotate([0, 0, angle])
+        // Point at hub edge
         translate([hub_radius - 1, 0, 0])
-        rotate([blade_tilt_angle/3, 0, 0])
-        cube([3, blade_band_thickness, blade_band_width/2], center = true);
-        
-        // At blade start
-        rotate([0, 0, angle])
-        translate([blade_center_offset - blade_loop_radius + blade_band_thickness/2 + 2, 0, blade_spiral_height/2])
         rotate([blade_tilt_angle, 0, 0])
-        rotate([0, 0, 0])
-        cube([4, blade_band_thickness, blade_band_width], center = true);
-    }
-}
-
-// Complete single blade with connection
-module complete_blade(angle) {
-    rotate([0, 0, angle]) {
-        blade();
-        rotate([0, 0, -angle])
-        blade_connection(angle);
+        cube([2, blade_band_thickness, blade_band_width], center = true);
+        
+        // Point at start of blade loop
+        translate([blade_center_offset - blade_loop_radius + blade_band_thickness, 0, blade_spiral_height/2])
+        rotate([blade_tilt_angle, 0, 0])
+        cube([2, blade_band_thickness, blade_band_width], center = true);
     }
 }
 
 // Main assembly
 module toroidal_propeller() {
-    // Hub
-    hub();
-    
-    // Three blades arranged symmetrically
-    for (i = [0 : num_blades - 1]) {
-        complete_blade(i * blade_angle_spacing);
+    union() {
+        // Central hub
+        hub();
+        
+        // Three blades arranged symmetrically
+        for (i = [0 : num_blades - 1]) {
+            angle = i * (360 / num_blades);
+            
+            // Blade loop
+            rotate([0, 0, angle])
+            blade();
+            
+            // Connector from hub to blade
+            blade_connector(angle);
+        }
     }
 }
 

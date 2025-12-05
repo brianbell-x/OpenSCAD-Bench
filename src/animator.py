@@ -1,5 +1,5 @@
 """
-Animator module for generating rotating WebM animations from STL files using vedo.
+Animator module for generating rotating MP4 animations from STL files using vedo.
 """
 
 import logging
@@ -29,19 +29,19 @@ def animate_stl(
     stl_path: Path,
     output_path: Optional[Path] = None,
     duration: float = 6.0,
-    fps: int = 24,
-    resolution: tuple[int, int] = (800, 600),
+    fps: int = 30,
+    resolution: tuple[int, int] = (720, 720),
     ffmpeg_path: Optional[str] = None,
 ) -> AnimationResult:
     """
-    Generates a rotating WebM animation from an STL file.
+    Generates a rotating MP4 animation from an STL file.
 
     Args:
         stl_path: Path to the input STL file.
-        output_path: Path for output WebM file (default: same as stl_path but with .webm extension).
-        duration: Duration in seconds for full 360° rotation (default: 3.0).
-        fps: Frames per second (default: 24).
-        resolution: Tuple of (width, height) for output video (default: (800, 600)).
+        output_path: Path for output MP4 file (default: same as stl_path but with .mp4 extension).
+        duration: Duration in seconds for full 360° rotation (default: 6.0).
+        fps: Frames per second (default: 30).
+        resolution: Tuple of (width, height) for output video (default: (720, 720)).
         ffmpeg_path: Optional path to ffmpeg executable.
 
     Returns:
@@ -53,7 +53,7 @@ def animate_stl(
     stl_path = Path(stl_path)
 
     if output_path is None:
-        output_path = stl_path.with_suffix(".webm")
+        output_path = stl_path.with_suffix(".mp4")
     else:
         output_path = Path(output_path)
 
@@ -87,7 +87,7 @@ def animate_stl(
 
         # Use imageio backend which is more reliable on Windows than ffmpeg backend
         # (vedo's ffmpeg backend uses os.system with single quotes which fails on Windows)
-        # We must manually write the video using imageio to specify the codec for WebM output
+        # We must manually write the video using imageio to specify the codec and parameters for MP4 output
         # because vedo.Video doesn't pass extra arguments to imageio.get_writer
         import imageio
         
@@ -123,8 +123,17 @@ def animate_stl(
             current_azimuth = azimuths[i]
             current_elevation = elevations[i]
         
-        # Manually write frames to video file with correct codec
-        writer = imageio.get_writer(str(output_path), fps=fps, codec="libvpx-vp9")
+        # Manually write frames to video file with correct codec and X-optimized settings
+        writer = imageio.get_writer(
+            str(output_path), 
+            fps=fps, 
+            codec="libx264",
+            output_params=[
+                "-profile:v", "high", 
+                "-pix_fmt", "yuv420p", 
+                "-b:v", "2048k"
+            ]
+        )
         for f in vid.frames:
             writer.append_data(imageio.imread(f))
         writer.close()
@@ -144,7 +153,7 @@ def animate_stl(
             raise RuntimeError(f"Animation file was not created: {output_path}")
         
         file_size = output_path.stat().st_size
-        if file_size < 1000:  # A valid webm should be at least 1KB
+        if file_size < 1000:  # A valid mp4 should be at least 1KB
             raise RuntimeError(
                 f"Animation file appears to be empty or corrupted ({file_size} bytes). "
                 "This usually means ffmpeg failed - check that ffmpeg is installed and in PATH."

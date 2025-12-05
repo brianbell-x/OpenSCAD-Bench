@@ -1,96 +1,85 @@
-//
+// ========================================================
 // Toroidal 3âblade propeller
-// All dimensions in mm
-//
+// ========================================================
 
-// ---------- Global quality ----------
-$fn = 80;          // cylinder smoothness
-seg_step = 5;      // angular step (deg) for blade path sampling
-                   // smaller = smoother, slower to render
+$fn = 80;  // global resolution
 
-// ---------- Parameters ----------
-hub_od   = 15;     // outer diameter of hub
-hub_h    = 10;     // hub height
-hole_d   = 5;      // mounting hole diameter
+// ---------------- Parameters ----------------
+hub_d  = 15;   // hub outer diameter
+hub_h  = 10;   // hub height
+hole_d = 5;    // mounting hole diameter
 
-blade_count      = 3;
-blade_pitch_h    = 15;      // Z rise of loop from start to end
-blade_arc_deg    = 340;     // loop arc (deg), <360 to leave a gap
-band_width       = 12;      // vertical width of band
-band_thickness   = 2;       // radial thickness of band
-loop_outer_d     = 50;      // outer diameter of each toroidal loop
+blade_loop_outer_d    = 50;  // each loop outer diameter
+blade_band_width      = 12;  // vertical width of band
+blade_band_thickness  = 2;   // radial thickness of band
+blade_arc_deg         = 340; // loop coverage (330â350Â° requested)
+blade_pitch_height    = 15;  // rise from start to end of loop (helical pitch)
 
-// Derived values
-hub_r          = hub_od/2;
-hole_r         = hole_d/2;
-band_rad_half  = band_thickness/2;
-loop_outer_r   = loop_outer_d/2;
-ring_r0        = loop_outer_r - band_rad_half;      // path radius about loop center
-blade_center_r = hub_r + ring_r0 + band_rad_half;   // distance hub->loop center
+// ---------------- Modules -------------------
 
-t_start = 180;                    // start angle (deg) around loop center
-t_end   = t_start + blade_arc_deg;
-
-// Center the band so it overlaps the hub midâheight
-band_z_offset = hub_h/2;          // lower Z of hub is 0, upper is hub_h
-
-
-// ---------- Main assembly ----------
-propeller();
-
-module propeller() {
-    union() {
-        hub();
-        // three identical blades 120Â° apart
-        for (i = [0:blade_count-1]) {
-            rotate([0,0,120*i])
-                blade_single();
-        }
-    }
-}
-
-// ---------- Hub with mounting hole ----------
+// Central hub with mounting throughâhole
 module hub() {
     difference() {
-        // solid hub
-        cylinder(r = hub_r, h = hub_h);
-        // through-hole
-        translate([0,0,-1])
-            cylinder(r = hole_r, h = hub_h + 2);
+        cylinder(d = hub_d, h = hub_h);
+        translate([0,0,hub_h/2])
+            cylinder(d = hole_d, h = hub_h + 4, center = true);
     }
 }
 
-// ---------- One toroidal blade ----------
-module blade_single() {
-    // Sweep a rectangular crossâsection along a helical arc
-    for (t = [t_start:seg_step:t_end-seg_step]) {
-        hull() {
-            blade_slice(t);
-            blade_slice(t + seg_step);
+// One toroidal blade, initially oriented along +X
+module toroidal_blade() {
+    outer_r   = blade_loop_outer_d / 2;
+    thickness = blade_band_thickness;
+    height    = blade_band_width;
+    pitch     = blade_pitch_height;
+
+    inner_r = outer_r - thickness;
+    r_mid   = (outer_r + inner_r) / 2;  // radius of band centerline
+
+    gap_deg = 360 - blade_arc_deg; // missing section of loop (opening near hub)
+    steps   = 80;                  // more steps = smoother band
+
+    union() {
+        // Build helical band as chained hulls of small rectangular sections
+        for (i = [0 : steps - 1]) {
+            frac0 = i / steps;
+            frac1 = (i + 1) / steps;
+
+            ang0 = 180 + gap_deg/2 + frac0 * blade_arc_deg;
+            ang1 = 180 + gap_deg/2 + frac1 * blade_arc_deg;
+
+            z0 = pitch * frac0;
+            z1 = pitch * frac1;
+
+            hull() {
+                blade_section(ang0, z0, outer_r, r_mid, thickness, height);
+                blade_section(ang1, z1, outer_r, r_mid, thickness, height);
+            }
         }
     }
 }
 
-// Rectangular slice at parameter angle t (degrees) along the loop
-module blade_slice(t) {
-    // Parametric progress along arc (0 at start, 1 at end)
-    u = (t - t_start) / (t_end - t_start);
+// Crossâsection of the blade band at a given angle around its own loop center
+module blade_section(theta, z_off, loop_offset, r_mid, thickness, height) {
+    tangential_len = 2;               // small; hull between sections smooths band
+    center_z       = hub_h/2 + z_off; // roughly centered on hub and rising by pitch
 
-    // Helical Z center of the band
-    zc = band_z_offset + blade_pitch_h * u;
-
-    // Centerline path of the band in XY (about the loop's own center)
-    x = blade_center_r + ring_r0 * cos(t);
-    y =                 ring_r0 * sin(t);
-
-    // Approximate tangential length of the slice (for better overlap)
-    seg_len = radians(seg_step) * ring_r0 * 1.2;
-
-    // At angle t, rotate such that:
-    //  - local X axis is tangential to the loop
-    //  - local Y axis is radial (thickness direction)
-    //  - local Z is vertical (band width)
-    translate([x, y, zc])
-        rotate([0,0,t])
-            cube([seg_len, band_thickness, band_width], center=true);
+    translate([0, 0, center_z])           // vertical placement
+        translate([loop_offset, 0, 0])    // move loop center away from hub axis
+            rotate([0, 0, theta])        // angle around loop center
+                translate([r_mid, 0, 0]) // radius from loop center
+                    cube([thickness, tangential_len, height], center = true);
 }
+
+// Complete 3âblade toroidal propeller
+module toroidal_propeller() {
+    union() {
+        hub();
+        // Three identical blades 120Â° apart
+        for (rot = [0, 120, 240])
+            rotate([0, 0, rot]) toroidal_blade();
+    }
+}
+
+// -------- Render --------
+toroidal_propeller();
